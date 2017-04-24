@@ -772,6 +772,7 @@ class Client(object):
     def reconnect(self):
         """Reconnect the client after a disconnect. Can only be called after
         connect()/connect_async()."""
+        self._easy_log(MQTT_LOG_DEBUG, "reconnect called")
         if len(self._host) == 0:
             raise ValueError('Invalid host.')
         if self._port <= 0:
@@ -812,6 +813,8 @@ class Client(object):
             self._sock.close()
             self._sock = None
 
+        self._easy_log(MQTT_LOG_DEBUG, "reconnect old socket closed")
+
         # Put messages in progress in a valid state.
         self._messages_reconnect_reset()
 
@@ -823,6 +826,8 @@ class Client(object):
         except socket.error as err:
             if err.errno != errno.EINPROGRESS and err.errno != errno.EWOULDBLOCK and err.errno != EAGAIN:
                 raise
+
+        self._easy_log(MQTT_LOG_DEBUG, "reconnect got new socket")
 
         if self._tls_ca_certs is not None:
             self._ssl = ssl.wrap_socket(
@@ -837,11 +842,15 @@ class Client(object):
             self._ssl.settimeout(self._keepalive)
             self._ssl.do_handshake()
 
+            self._easy_log(MQTT_LOG_DEBUG, "reconnect did handshake")
+
             if self._tls_insecure is False:
                 if sys.version_info[0] < 3 or (sys.version_info[0] == 3 and sys.version_info[1] < 2):
                     self._tls_match_hostname()
                 else:
                     ssl.match_hostname(self._ssl.getpeercert(), self._host)
+
+                self._easy_log(MQTT_LOG_DEBUG, "reconnect got tls")
 
         if self._transport == "websockets":
             if self._tls_ca_certs is not None:
@@ -851,12 +860,15 @@ class Client(object):
                 sock.settimeout(self._keepalive)
                 sock = WebsocketWrapper(sock, self._host, self._port, False)
 
+            self._easy_log(MQTT_LOG_DEBUG, "reconnect got websocket")
+
         self._sock = sock
         if self._ssl:
             self._ssl.setblocking(0)
         else:
             self._sock.setblocking(0)
 
+        self._easy_log(MQTT_LOG_DEBUG, "reconnect finished")
         return self._send_connect(self._keepalive, self._clean_session)
 
     def loop(self, timeout=1.0, max_packets=1):
@@ -2627,7 +2639,9 @@ class Client(object):
         self._callback_mutex.release()
 
     def _thread_main(self):
+        self._easy_log(MQTT_LOG_DEBUG, "_thread_main starting")
         self.loop_forever(retry_first_connection=True)
+        self._easy_log(MQTT_LOG_DEBUG, "_thread_main exiting")
 
     def _host_matches_cert(self, host, cert_host):
         if cert_host[0:2] == "*.":
