@@ -786,6 +786,7 @@ class Client(object):
     def reconnect(self):
         """Reconnect the client after a disconnect. Can only be called after
         connect()/connect_async()."""
+        self._easy_log(MQTT_LOG_DEBUG, "reconnect called")
         if len(self._host) == 0:
             raise ValueError('Invalid host.')
         if self._port <= 0:
@@ -823,6 +824,8 @@ class Client(object):
             self._sock.close()
             self._sock = None
 
+        self._easy_log(MQTT_LOG_DEBUG, "reconnect old socket closed")
+
         # Put messages in progress in a valid state.
         self._messages_reconnect_reset()
 
@@ -835,6 +838,8 @@ class Client(object):
             if err.errno != errno.EINPROGRESS and err.errno != errno.EWOULDBLOCK and err.errno != EAGAIN:
                 raise
 
+        self._easy_log(MQTT_LOG_DEBUG, "reconnect got new socket")
+
         if self._ssl:
             # SSL is only supported when SSLContext is available (implies Python >= 2.7.9 or >= 3.2)
 
@@ -842,6 +847,7 @@ class Client(object):
             try:
                 # Try with server_hostname, even it's not supported in certain scenarios
                 sock = self._ssl_context.wrap_socket(sock, server_hostname=self._host)
+                self._easy_log(MQTT_LOG_DEBUG, "reconnect got ssl")
             except ssl.CertificateError:
                 # CertificateError is derived from ValueError
                 raise
@@ -856,13 +862,16 @@ class Client(object):
 
             if verify_host:
                 ssl.match_hostname(sock.getpeercert(), self._host)
+                self._easy_log(MQTT_LOG_DEBUG, "reconnect got tls")
 
         if self._transport == "websockets":
             sock = WebsocketWrapper(sock, self._host, self._port, self._ssl)
+            self._easy_log(MQTT_LOG_DEBUG, "reconnect got websocket")
 
         self._sock = sock
         self._sock.setblocking(0)
 
+        self._easy_log(MQTT_LOG_DEBUG, "reconnect finished")
         return self._send_connect(self._keepalive, self._clean_session)
 
     def loop(self, timeout=1.0, max_packets=1):
@@ -2565,7 +2574,9 @@ class Client(object):
         self._callback_mutex.release()
 
     def _thread_main(self):
+        self._easy_log(MQTT_LOG_DEBUG, "_thread_main starting")
         self.loop_forever(retry_first_connection=True)
+        self._easy_log(MQTT_LOG_DEBUG, "_thread_main exiting")
 
 
 # Compatibility class for easy porting from mosquitto.py.
